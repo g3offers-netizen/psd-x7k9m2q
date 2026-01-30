@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPC-Presort Time Series Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e; 
+            color: #eee; 
+            padding: 20px;
+        }
+        h1 { text-align: center; color: #00d4aa; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 20px; }
+        .updated { text-align: center; color: #666; font-size: 12px; margin-bottom: 30px; }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        .chart-container { 
+            background: #16213e; 
+            border-radius: 12px; 
+            padding: 20px;
+            min-height: 300px;
+        }
+        .chart-container.full-width { grid-column: 1 / -1; }
+        .chart-container h3 { color: #00d4aa; margin-bottom: 15px; font-size: 16px; }
+        
+        .order-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #16213e;
+            border-radius: 12px;
+        }
+        .order-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .order-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        canvas { max-height: 250px; }
+    </style>
+</head>
+<body>
+    <h1>📊 FPC-Presort Time Series</h1>
+    <p class="subtitle">Last 24 Hours — All Metrics</p>
+    <p class="updated" id="lastUpdate"></p>
+    
+    <div class="order-legend" id="orderLegend"></div>
+    
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h3>🏭 Bins Per Hour</h3>
+            <canvas id="binsPerHourChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>⚖️ Avg Bin Weight (lbs)</h3>
+            <canvas id="avgWeightChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>📦 Bins Consumed</h3>
+            <canvas id="binsConsumedChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>✅ Full %</h3>
+            <canvas id="fullPctChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🟢 Grade: Full %</h3>
+            <canvas id="gradeFullChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>📤 Grade: Export %</h3>
+            <canvas id="gradeExportChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🍋 Grade: Light Green %</h3>
+            <canvas id="gradeLightGreenChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>⚠️ Grade: Choice %</h3>
+            <canvas id="gradeChoiceChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🧃 Grade: Juice %</h3>
+            <canvas id="gradeJuiceChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌿 Grade: Green %</h3>
+            <canvas id="gradeGreenChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌡️ Brix High %</h3>
+            <canvas id="brixHighChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌡️ Brix Mid %</h3>
+            <canvas id="brixMidChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌡️ Brix Low %</h3>
+            <canvas id="brixLowChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🔴 Defects (Choice + Juice) %</h3>
+            <canvas id="defectsChart"></canvas>
+        </div>
+        <div class="chart-container full-width">
+            <h3>📏 Size Distribution (Large / Medium / Small)</h3>
+            <canvas id="sizeChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Data will be injected here
+        const DATA = [{"timestamp":"2026-01-29 09:45:27","prod_order":"PROD49421","variety":"Hosaka-Tango","bins_per_hour":247,"avg_bin_weight":921.0,"bins_consumed":42,"bins_received":110,"full_pct":79,"grade_full":41,"grade_export":24,"grade_light_green":13,"grade_choice":8,"grade_juice":null,"grade_green":3,"grade_long_stem":2,"brix_high":75,"brix_mid":18,"brix_low":7,"size_18":5,"size_21":18,"size_24":22,"size_28":18,"size_32":18,"size_36":11,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 09:50:26","prod_order":"PROD49421","variety":"Hosaka-Tango","bins_per_hour":259,"avg_bin_weight":921.0,"bins_consumed":70,"bins_received":110,"full_pct":80,"grade_full":40,"grade_export":26,"grade_light_green":12,"grade_choice":8,"grade_juice":null,"grade_green":3,"grade_long_stem":2,"brix_high":68,"brix_mid":22,"brix_low":10,"size_18":5,"size_21":18,"size_24":22,"size_28":18,"size_32":18,"size_36":11,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 09:55:25","prod_order":"PROD49421","variety":"Hosaka-Tango","bins_per_hour":276,"avg_bin_weight":922.0,"bins_consumed":91,"bins_received":110,"full_pct":80,"grade_full":39,"grade_export":27,"grade_light_green":13,"grade_choice":8,"grade_juice":null,"grade_green":3,"grade_long_stem":3,"brix_high":70,"brix_mid":20,"brix_low":11,"size_18":5,"size_21":18,"size_24":21,"size_28":19,"size_32":18,"size_36":11,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:00:28","prod_order":"PROD49421","variety":"Hosaka-Tango","bins_per_hour":262,"avg_bin_weight":922.0,"bins_consumed":110,"bins_received":110,"full_pct":81,"grade_full":40,"grade_export":26,"grade_light_green":13,"grade_choice":8,"grade_juice":null,"grade_green":3,"grade_long_stem":2,"brix_high":69,"brix_mid":21,"brix_low":10,"size_18":5,"size_21":18,"size_24":22,"size_28":19,"size_32":18,"size_36":11,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:10:27","prod_order":"PROD49422","variety":"Camp - Tango (F-10)","bins_per_hour":161,"avg_bin_weight":931.0,"bins_consumed":29,"bins_received":29,"full_pct":87,"grade_full":44,"grade_export":24,"grade_light_green":17,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":4,"brix_high":70,"brix_mid":29,"brix_low":21,"size_18":2,"size_21":9,"size_24":16,"size_28":18,"size_32":23,"size_36":18,"size_40":13,"size_44":0},
+{"timestamp":"2026-01-29 10:15:28","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":300,"avg_bin_weight":975.0,"bins_consumed":45,"bins_received":213,"full_pct":88,"grade_full":42,"grade_export":33,"grade_light_green":12,"grade_choice":5,"grade_juice":null,"grade_green":2,"grade_long_stem":3,"brix_high":82,"brix_mid":14,"brix_low":4,"size_18":4,"size_21":15,"size_24":20,"size_28":20,"size_32":21,"size_36":13,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:20:26","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":291,"avg_bin_weight":974.0,"bins_consumed":64,"bins_received":213,"full_pct":88,"grade_full":42,"grade_export":34,"grade_light_green":11,"grade_choice":5,"grade_juice":null,"grade_green":2,"grade_long_stem":3,"brix_high":80,"brix_mid":15,"brix_low":5,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 10:25:27","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":307,"avg_bin_weight":974.0,"bins_consumed":92,"bins_received":213,"full_pct":88,"grade_full":41,"grade_export":35,"grade_light_green":11,"grade_choice":5,"grade_juice":null,"grade_green":1,"grade_long_stem":3,"brix_high":81,"brix_mid":14,"brix_low":6,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 10:30:53","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":308,"avg_bin_weight":973.0,"bins_consumed":117,"bins_received":213,"full_pct":89,"grade_full":41,"grade_export":37,"grade_light_green":10,"grade_choice":4,"grade_juice":null,"grade_green":1,"grade_long_stem":4,"brix_high":82,"brix_mid":13,"brix_low":5,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 10:35:24","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":306,"avg_bin_weight":974.0,"bins_consumed":144,"bins_received":213,"full_pct":88,"grade_full":40,"grade_export":37,"grade_light_green":10,"grade_choice":5,"grade_juice":null,"grade_green":1,"grade_long_stem":4,"brix_high":82,"brix_mid":13,"brix_low":5,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:40:24","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":298,"avg_bin_weight":974.0,"bins_consumed":170,"bins_received":213,"full_pct":88,"grade_full":40,"grade_export":36,"grade_light_green":10,"grade_choice":5,"grade_juice":null,"grade_green":1,"grade_long_stem":4,"brix_high":83,"brix_mid":12,"brix_low":4,"size_18":4,"size_21":15,"size_24":22,"size_28":21,"size_32":20,"size_36":11,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:45:24","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":302,"avg_bin_weight":980.0,"bins_consumed":190,"bins_received":213,"full_pct":88,"grade_full":40,"grade_export":36,"grade_light_green":10,"grade_choice":5,"grade_juice":null,"grade_green":1,"grade_long_stem":4,"brix_high":83,"brix_mid":12,"brix_low":5,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:50:24","prod_order":"PROD49423","variety":"Ito-Tango","bins_per_hour":293,"avg_bin_weight":979.0,"bins_consumed":211,"bins_received":213,"full_pct":87,"grade_full":41,"grade_export":35,"grade_light_green":10,"grade_choice":5,"grade_juice":null,"grade_green":1,"grade_long_stem":4,"brix_high":83,"brix_mid":12,"brix_low":5,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 10:55:27","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":280,"avg_bin_weight":923.0,"bins_consumed":28,"bins_received":152,"full_pct":80,"grade_full":51,"grade_export":22,"grade_light_green":8,"grade_choice":10,"grade_juice":null,"grade_green":2,"grade_long_stem":3,"brix_high":61,"brix_mid":29,"brix_low":10,"size_18":4,"size_21":17,"size_24":24,"size_28":18,"size_32":21,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 11:00:25","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":311,"avg_bin_weight":923.0,"bins_consumed":56,"bins_received":152,"full_pct":87,"grade_full":46,"grade_export":22,"grade_light_green":17,"grade_choice":8,"grade_juice":null,"grade_green":2,"grade_long_stem":2,"brix_high":59,"brix_mid":29,"brix_low":12,"size_18":4,"size_21":15,"size_24":21,"size_28":19,"size_32":21,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 11:05:26","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":296,"avg_bin_weight":923.0,"bins_consumed":83,"bins_received":152,"full_pct":87,"grade_full":47,"grade_export":21,"grade_light_green":17,"grade_choice":8,"grade_juice":null,"grade_green":2,"grade_long_stem":2,"brix_high":56,"brix_mid":29,"brix_low":14,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 11:10:25","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":283,"avg_bin_weight":924.0,"bins_consumed":99,"bins_received":152,"full_pct":87,"grade_full":47,"grade_export":21,"grade_light_green":17,"grade_choice":8,"grade_juice":null,"grade_green":2,"grade_long_stem":1,"brix_high":56,"brix_mid":29,"brix_low":16,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 11:15:33","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":279,"avg_bin_weight":925.0,"bins_consumed":120,"bins_received":152,"full_pct":87,"grade_full":47,"grade_export":22,"grade_light_green":16,"grade_choice":8,"grade_juice":null,"grade_green":2,"grade_long_stem":2,"brix_high":55,"brix_mid":29,"brix_low":16,"size_18":3,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 11:20:25","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":275,"avg_bin_weight":925.0,"bins_consumed":143,"bins_received":152,"full_pct":87,"grade_full":47,"grade_export":22,"grade_light_green":16,"grade_choice":8,"grade_juice":null,"grade_green":2,"grade_long_stem":2,"brix_high":56,"brix_mid":29,"brix_low":15,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 11:25:26","prod_order":"PROD49424","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":252,"avg_bin_weight":924.0,"bins_consumed":151,"bins_received":152,"full_pct":87,"grade_full":47,"grade_export":22,"grade_light_green":16,"grade_choice":8,"grade_juice":null,"grade_green":2,"grade_long_stem":2,"brix_high":57,"brix_mid":29,"brix_low":14,"size_18":4,"size_21":15,"size_24":21,"size_28":20,"size_32":20,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 11:30:30","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":269,"avg_bin_weight":920.0,"bins_consumed":35,"bins_received":486,"full_pct":85,"grade_full":47,"grade_export":13,"grade_light_green":22,"grade_choice":10,"grade_juice":null,"grade_green":4,"grade_long_stem":0,"brix_high":30,"brix_mid":28,"brix_low":41,"size_18":5,"size_21":17,"size_24":22,"size_28":18,"size_32":20,"size_36":11,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 11:35:27","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":285,"avg_bin_weight":915.0,"bins_consumed":57,"bins_received":486,"full_pct":87,"grade_full":48,"grade_export":14,"grade_light_green":22,"grade_choice":8,"grade_juice":null,"grade_green":4,"grade_long_stem":0,"brix_high":43,"brix_mid":31,"brix_low":27,"size_18":5,"size_21":16,"size_24":22,"size_28":20,"size_32":19,"size_36":11,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 11:40:26","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":304,"avg_bin_weight":909.0,"bins_consumed":85,"bins_received":486,"full_pct":86,"grade_full":46,"grade_export":13,"grade_light_green":22,"grade_choice":9,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":45,"brix_mid":29,"brix_low":26,"size_18":5,"size_21":17,"size_24":22,"size_28":20,"size_32":19,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 11:45:27","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":303,"avg_bin_weight":911.0,"bins_consumed":112,"bins_received":486,"full_pct":86,"grade_full":46,"grade_export":13,"grade_light_green":22,"grade_choice":9,"grade_juice":null,"grade_green":4,"grade_long_stem":1,"brix_high":46,"brix_mid":29,"brix_low":25,"size_18":6,"size_21":18,"size_24":22,"size_28":20,"size_32":18,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 11:50:25","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":307,"avg_bin_weight":916.0,"bins_consumed":138,"bins_received":486,"full_pct":85,"grade_full":46,"grade_export":13,"grade_light_green":23,"grade_choice":9,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":45,"brix_mid":29,"brix_low":26,"size_18":6,"size_21":18,"size_24":22,"size_28":19,"size_32":18,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 11:55:26","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":304,"avg_bin_weight":919.0,"bins_consumed":167,"bins_received":486,"full_pct":85,"grade_full":45,"grade_export":12,"grade_light_green":23,"grade_choice":9,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":44,"brix_mid":28,"brix_low":28,"size_18":6,"size_21":18,"size_24":22,"size_28":19,"size_32":18,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:00:25","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":300,"avg_bin_weight":919.0,"bins_consumed":186,"bins_received":486,"full_pct":84,"grade_full":45,"grade_export":12,"grade_light_green":23,"grade_choice":9,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":44,"brix_mid":29,"brix_low":27,"size_18":6,"size_21":18,"size_24":22,"size_28":19,"size_32":17,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:05:25","prod_order":"PROD49425","variety":"Del Rey - Tango","bins_per_hour":271,"avg_bin_weight":919.0,"bins_consumed":190,"bins_received":486,"full_pct":85,"grade_full":45,"grade_export":12,"grade_light_green":23,"grade_choice":9,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":45,"brix_mid":29,"brix_low":26,"size_18":6,"size_21":18,"size_24":22,"size_28":19,"size_32":18,"size_36":10,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:11:57","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":244,"avg_bin_weight":927.0,"bins_consumed":44,"bins_received":244,"full_pct":73,"grade_full":39,"grade_export":11,"grade_light_green":20,"grade_choice":17,"grade_juice":null,"grade_green":4,"grade_long_stem":1,"brix_high":67,"brix_mid":21,"brix_low":12,"size_18":6,"size_21":19,"size_24":21,"size_28":18,"size_32":18,"size_36":10,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 12:16:53","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":267,"avg_bin_weight":924.0,"bins_consumed":72,"bins_received":244,"full_pct":75,"grade_full":40,"grade_export":14,"grade_light_green":18,"grade_choice":16,"grade_juice":null,"grade_green":4,"grade_long_stem":1,"brix_high":61,"brix_mid":24,"brix_low":15,"size_18":7,"size_21":20,"size_24":21,"size_28":19,"size_32":17,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:21:54","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":273,"avg_bin_weight":924.0,"bins_consumed":101,"bins_received":244,"full_pct":78,"grade_full":41,"grade_export":16,"grade_light_green":17,"grade_choice":14,"grade_juice":null,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":24,"brix_low":14,"size_18":6,"size_21":19,"size_24":23,"size_28":18,"size_32":17,"size_36":9,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 12:26:52","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":289,"avg_bin_weight":924.0,"bins_consumed":130,"bins_received":244,"full_pct":79,"grade_full":41,"grade_export":17,"grade_light_green":18,"grade_choice":13,"grade_juice":null,"grade_green":4,"grade_long_stem":2,"brix_high":59,"brix_mid":26,"brix_low":15,"size_18":7,"size_21":19,"size_24":22,"size_28":19,"size_32":17,"size_36":9,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 12:31:53","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":298,"avg_bin_weight":923.0,"bins_consumed":158,"bins_received":244,"full_pct":80,"grade_full":42,"grade_export":18,"grade_light_green":18,"grade_choice":12,"grade_juice":null,"grade_green":3,"grade_long_stem":2,"brix_high":59,"brix_mid":25,"brix_low":16,"size_18":7,"size_21":19,"size_24":23,"size_28":19,"size_32":17,"size_36":9,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 12:36:53","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":295,"avg_bin_weight":922.0,"bins_consumed":177,"bins_received":244,"full_pct":81,"grade_full":42,"grade_export":19,"grade_light_green":18,"grade_choice":11,"grade_juice":null,"grade_green":3,"grade_long_stem":2,"brix_high":58,"brix_mid":26,"brix_low":16,"size_18":6,"size_21":20,"size_24":23,"size_28":19,"size_32":17,"size_36":9,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 12:41:52","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":300,"avg_bin_weight":922.0,"bins_consumed":204,"bins_received":244,"full_pct":82,"grade_full":42,"grade_export":18,"grade_light_green":18,"grade_choice":10,"grade_juice":null,"grade_green":4,"grade_long_stem":2,"brix_high":57,"brix_mid":27,"brix_low":16,"size_18":6,"size_21":20,"size_24":22,"size_28":19,"size_32":17,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:46:52","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":295,"avg_bin_weight":922.0,"bins_consumed":230,"bins_received":244,"full_pct":83,"grade_full":42,"grade_export":18,"grade_light_green":19,"grade_choice":10,"grade_juice":null,"grade_green":4,"grade_long_stem":2,"brix_high":57,"brix_mid":27,"brix_low":17,"size_18":6,"size_21":20,"size_24":22,"size_28":19,"size_32":17,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:51:52","prod_order":"PROD49426","variety":"Podolsky - Tango","bins_per_hour":278,"avg_bin_weight":922.0,"bins_consumed":242,"bins_received":244,"full_pct":83,"grade_full":42,"grade_export":18,"grade_light_green":19,"grade_choice":9,"grade_juice":null,"grade_green":4,"grade_long_stem":2,"brix_high":56,"brix_mid":26,"brix_low":17,"size_18":6,"size_21":19,"size_24":22,"size_28":19,"size_32":17,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 12:56:54","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":283,"avg_bin_weight":957.0,"bins_consumed":34,"bins_received":390,"full_pct":86,"grade_full":49,"grade_export":25,"grade_light_green":10,"grade_choice":6,"grade_juice":null,"grade_green":3,"grade_long_stem":4,"brix_high":69,"brix_mid":22,"brix_low":9,"size_18":3,"size_21":14,"size_24":17,"size_28":21,"size_32":24,"size_36":12,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:01:52","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":311,"avg_bin_weight":951.0,"bins_consumed":56,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":22,"grade_light_green":17,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":71,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":14,"size_24":21,"size_28":21,"size_32":21,"size_36":12,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:06:52","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":307,"avg_bin_weight":950.0,"bins_consumed":83,"bins_received":390,"full_pct":87,"grade_full":46,"grade_export":22,"grade_light_green":17,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":73,"brix_mid":19,"brix_low":8,"size_18":3,"size_21":14,"size_24":21,"size_28":21,"size_32":21,"size_36":12,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 13:11:53","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":295,"avg_bin_weight":956.0,"bins_consumed":109,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":74,"brix_mid":18,"brix_low":7,"size_18":3,"size_21":14,"size_24":21,"size_28":21,"size_32":21,"size_36":13,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:16:52","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":298,"avg_bin_weight":956.0,"bins_consumed":134,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":73,"brix_mid":19,"brix_low":8,"size_18":3,"size_21":13,"size_24":21,"size_28":21,"size_32":22,"size_36":13,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:21:52","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":304,"avg_bin_weight":954.0,"bins_consumed":161,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":73,"brix_mid":19,"brix_low":8,"size_18":3,"size_21":13,"size_24":21,"size_28":21,"size_32":21,"size_36":13,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:27:14","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":303,"avg_bin_weight":955.0,"bins_consumed":188,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":73,"brix_mid":19,"brix_low":8,"size_18":3,"size_21":13,"size_24":20,"size_28":20,"size_32":22,"size_36":13,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:31:54","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":303,"avg_bin_weight":954.0,"bins_consumed":206,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":72,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":13,"size_24":20,"size_28":20,"size_32":22,"size_36":13,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 13:36:54","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":299,"avg_bin_weight":954.0,"bins_consumed":233,"bins_received":390,"full_pct":89,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":72,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":13,"size_24":20,"size_28":20,"size_32":22,"size_36":14,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 13:41:51","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":295,"avg_bin_weight":954.0,"bins_consumed":257,"bins_received":390,"full_pct":89,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":72,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":12,"size_24":20,"size_28":20,"size_32":22,"size_36":13,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 13:46:52","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":297,"avg_bin_weight":953.0,"bins_consumed":282,"bins_received":390,"full_pct":88,"grade_full":47,"grade_export":23,"grade_light_green":16,"grade_choice":4,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":71,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":12,"size_24":20,"size_28":20,"size_32":23,"size_36":13,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 13:51:52","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":285,"avg_bin_weight":953.0,"bins_consumed":291,"bins_received":390,"full_pct":88,"grade_full":46,"grade_export":23,"grade_light_green":16,"grade_choice":5,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":72,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":12,"size_24":20,"size_28":20,"size_32":23,"size_36":12,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 13:57:03","prod_order":"PROD49431","variety":"G28 - Tango","bins_per_hour":265,"avg_bin_weight":953.0,"bins_consumed":291,"bins_received":390,"full_pct":88,"grade_full":46,"grade_export":23,"grade_light_green":16,"grade_choice":5,"grade_juice":null,"grade_green":3,"grade_long_stem":5,"brix_high":72,"brix_mid":20,"brix_low":9,"size_18":3,"size_21":12,"size_24":20,"size_28":20,"size_32":23,"size_36":12,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:00:50","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":225,"avg_bin_weight":964.0,"bins_consumed":45,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":6,"grade_light_green":38,"grade_choice":3,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":45,"brix_mid":29,"brix_low":26,"size_18":6,"size_21":17,"size_24":21,"size_28":19,"size_32":21,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:01:57","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":227,"avg_bin_weight":962.0,"bins_consumed":50,"bins_received":411,"full_pct":91,"grade_full":41,"grade_export":6,"grade_light_green":39,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":45,"brix_mid":29,"brix_low":26,"size_18":6,"size_21":16,"size_24":20,"size_28":19,"size_32":22,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:06:58","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":227,"avg_bin_weight":962.0,"bins_consumed":68,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":36,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":46,"brix_mid":30,"brix_low":24,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:14:06","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":229,"avg_bin_weight":960.0,"bins_consumed":96,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":36,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":45,"brix_mid":30,"brix_low":25,"size_18":6,"size_21":18,"size_24":21,"size_28":17,"size_32":20,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:17:01","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":240,"avg_bin_weight":960.0,"bins_consumed":108,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":37,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":44,"brix_mid":31,"brix_low":24,"size_18":6,"size_21":17,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:21:59","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":255,"avg_bin_weight":960.0,"bins_consumed":135,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":37,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":45,"brix_mid":31,"brix_low":25,"size_18":6,"size_21":17,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:26:57","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":254,"avg_bin_weight":970.0,"bins_consumed":160,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":44,"brix_mid":31,"brix_low":25,"size_18":6,"size_21":17,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:31:58","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":256,"avg_bin_weight":973.0,"bins_consumed":184,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":3,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":44,"brix_mid":31,"brix_low":25,"size_18":6,"size_21":17,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:36:53","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":263,"avg_bin_weight":973.0,"bins_consumed":210,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":3,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":45,"brix_mid":30,"brix_low":24,"size_18":6,"size_21":18,"size_24":21,"size_28":17,"size_32":20,"size_36":7,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 14:41:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":267,"avg_bin_weight":966.0,"bins_consumed":232,"bins_received":411,"full_pct":92,"grade_full":42,"grade_export":7,"grade_light_green":37,"grade_choice":3,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":46,"brix_mid":30,"brix_low":24,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 14:46:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":271,"avg_bin_weight":962.0,"bins_consumed":257,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":37,"grade_choice":3,"grade_juice":null,"grade_green":5,"grade_long_stem":1,"brix_high":47,"brix_mid":30,"brix_low":24,"size_18":6,"size_21":18,"size_24":21,"size_28":17,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 14:51:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":271,"avg_bin_weight":957.0,"bins_consumed":285,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":37,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":47,"brix_mid":30,"brix_low":23,"size_18":6,"size_21":18,"size_24":21,"size_28":17,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 14:56:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":276,"avg_bin_weight":953.0,"bins_consumed":312,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":47,"brix_mid":31,"brix_low":23,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:01:51","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":275,"avg_bin_weight":948.0,"bins_consumed":336,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":49,"brix_mid":29,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:06:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":279,"avg_bin_weight":945.0,"bins_consumed":357,"bins_received":411,"full_pct":91,"grade_full":41,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":48,"brix_mid":30,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:11:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":279,"avg_bin_weight":950.0,"bins_consumed":382,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":48,"brix_mid":30,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":17,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:16:54","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":271,"avg_bin_weight":950.0,"bins_consumed":399,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":48,"brix_mid":30,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:21:53","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":257,"avg_bin_weight":950.0,"bins_consumed":399,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":48,"brix_mid":30,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:26:53","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":245,"avg_bin_weight":950.0,"bins_consumed":399,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":49,"brix_mid":29,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":17,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:31:52","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":235,"avg_bin_weight":950.0,"bins_consumed":399,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":49,"brix_mid":29,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:36:51","prod_order":"PROD49432","variety":"Tahmazian Farming - Davidian","bins_per_hour":222,"avg_bin_weight":950.0,"bins_consumed":399,"bins_received":411,"full_pct":91,"grade_full":42,"grade_export":7,"grade_light_green":38,"grade_choice":4,"grade_juice":null,"grade_green":5,"grade_long_stem":2,"brix_high":49,"brix_mid":29,"brix_low":22,"size_18":6,"size_21":18,"size_24":21,"size_28":18,"size_32":20,"size_36":8,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 15:41:56","prod_order":"PROD49438","variety":"REWORK","bins_per_hour":200,"avg_bin_weight":789.0,"bins_consumed":6,"bins_received":0,"full_pct":10,"grade_full":20,"grade_export":null,"grade_light_green":null,"grade_choice":null,"grade_juice":null,"grade_green":null,"grade_long_stem":60,"brix_high":0,"brix_mid":0,"brix_low":100,"size_18":6,"size_21":2,"size_24":6,"size_28":2,"size_32":0,"size_36":2,"size_40":25,"size_44":10},
+{"timestamp":"2026-01-29 15:46:53","prod_order":"PROD49438","variety":"REWORK","bins_per_hour":208,"avg_bin_weight":807.0,"bins_consumed":25,"bins_received":0,"full_pct":92,"grade_full":51,"grade_export":26,"grade_light_green":13,"grade_choice":3,"grade_juice":null,"grade_green":3,"grade_long_stem":null,"brix_high":83,"brix_mid":14,"brix_low":3,"size_18":6,"size_21":8,"size_24":8,"size_28":19,"size_32":24,"size_36":17,"size_40":12,"size_44":0},
+{"timestamp":"2026-01-29 15:51:53","prod_order":"PROD49438","variety":"REWORK","bins_per_hour":190,"avg_bin_weight":793.0,"bins_consumed":38,"bins_received":0,"full_pct":93,"grade_full":55,"grade_export":23,"grade_light_green":14,"grade_choice":4,"grade_juice":null,"grade_green":1,"grade_long_stem":1,"brix_high":70,"brix_mid":21,"brix_low":9,"size_18":3,"size_21":8,"size_24":12,"size_28":44,"size_32":23,"size_36":5,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 15:56:52","prod_order":"PROD49438","variety":"REWORK","bins_per_hour":148,"avg_bin_weight":800.0,"bins_consumed":40,"bins_received":0,"full_pct":93,"grade_full":55,"grade_export":23,"grade_light_green":14,"grade_choice":3,"grade_juice":null,"grade_green":2,"grade_long_stem":1,"brix_high":71,"brix_mid":20,"brix_low":9,"size_18":5,"size_21":13,"size_24":16,"size_28":34,"size_32":22,"size_36":4,"size_40":3,"size_44":0},
+{"timestamp":"2026-01-29 16:01:53","prod_order":"PROD49438","variety":"REWORK","bins_per_hour":120,"avg_bin_weight":791.0,"bins_consumed":42,"bins_received":0,"full_pct":93,"grade_full":56,"grade_export":22,"grade_light_green":14,"grade_choice":4,"grade_juice":null,"grade_green":2,"grade_long_stem":2,"brix_high":72,"brix_mid":19,"brix_low":9,"size_18":5,"size_21":13,"size_24":16,"size_28":34,"size_32":22,"size_36":4,"size_40":3,"size_44":0},
+{"timestamp":"2026-01-29 16:06:54","prod_order":"PROD49438","variety":"REWORK","bins_per_hour":93,"avg_bin_weight":791.0,"bins_consumed":42,"bins_received":0,"full_pct":93,"grade_full":56,"grade_export":22,"grade_light_green":13,"grade_choice":4,"grade_juice":null,"grade_green":2,"grade_long_stem":1,"brix_high":72,"brix_mid":19,"brix_low":9,"size_18":5,"size_21":13,"size_24":18,"size_28":34,"size_32":21,"size_36":4,"size_40":3,"size_44":0},
+{"timestamp":"2026-01-29 16:16:52","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":240,"avg_bin_weight":934.0,"bins_consumed":12,"bins_received":90,"full_pct":38,"grade_full":18,"grade_export":6,"grade_light_green":6,"grade_choice":6,"grade_juice":null,"grade_green":null,"grade_long_stem":59,"brix_high":0,"brix_mid":100,"brix_low":0,"size_18":0,"size_21":3,"size_24":11,"size_28":3,"size_32":3,"size_36":3,"size_40":23,"size_44":29},
+{"timestamp":"2026-01-29 16:21:53","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":100,"avg_bin_weight":934.0,"bins_consumed":12,"bins_received":90,"full_pct":28,"grade_full":11,"grade_export":4,"grade_light_green":4,"grade_choice":32,"grade_juice":null,"grade_green":null,"grade_long_stem":36,"brix_high":50,"brix_mid":50,"brix_low":0,"size_18":0,"size_21":3,"size_24":4,"size_28":3,"size_32":4,"size_36":2,"size_40":23,"size_44":35},
+{"timestamp":"2026-01-29 16:31:52","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":40,"avg_bin_weight":934.0,"bins_consumed":12,"bins_received":90,"full_pct":59,"grade_full":33,"grade_export":22,"grade_light_green":11,"grade_choice":17,"grade_juice":null,"grade_green":null,"grade_long_stem":11,"brix_high":61,"brix_mid":26,"brix_low":13,"size_18":1,"size_21":4,"size_24":8,"size_28":14,"size_32":18,"size_36":2,"size_40":13,"size_44":23},
+{"timestamp":"2026-01-29 16:36:55","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":32,"avg_bin_weight":934.0,"bins_consumed":12,"bins_received":90,"full_pct":78,"grade_full":39,"grade_export":25,"grade_light_green":14,"grade_choice":17,"grade_juice":null,"grade_green":null,"grade_long_stem":2,"brix_high":74,"brix_mid":18,"brix_low":8,"size_18":1,"size_21":8,"size_24":16,"size_28":19,"size_32":29,"size_36":14,"size_40":10,"size_44":1},
+{"timestamp":"2026-01-29 16:41:53","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":51,"avg_bin_weight":936.0,"bins_consumed":24,"bins_received":90,"full_pct":78,"grade_full":39,"grade_export":23,"grade_light_green":14,"grade_choice":14,"grade_juice":null,"grade_green":null,"grade_long_stem":2,"brix_high":73,"brix_mid":19,"brix_low":8,"size_18":2,"size_21":8,"size_24":16,"size_28":20,"size_32":29,"size_36":14,"size_40":10,"size_44":0},
+{"timestamp":"2026-01-29 16:47:15","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":80,"avg_bin_weight":939.0,"bins_consumed":44,"bins_received":90,"full_pct":77,"grade_full":38,"grade_export":22,"grade_light_green":15,"grade_choice":13,"grade_juice":6,"grade_green":3,"grade_long_stem":3,"brix_high":64,"brix_mid":23,"brix_low":13,"size_18":2,"size_21":9,"size_24":17,"size_28":20,"size_32":29,"size_36":13,"size_40":9,"size_44":0},
+{"timestamp":"2026-01-29 16:51:54","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":97,"avg_bin_weight":940.0,"bins_consumed":61,"bins_received":90,"full_pct":75,"grade_full":37,"grade_export":20,"grade_light_green":15,"grade_choice":13,"grade_juice":7,"grade_green":3,"grade_long_stem":3,"brix_high":61,"brix_mid":25,"brix_low":15,"size_18":2,"size_21":9,"size_24":17,"size_28":20,"size_32":29,"size_36":13,"size_40":9,"size_44":0},
+{"timestamp":"2026-01-29 16:56:53","prod_order":"PROD49441","variety":"G28 - Tango","bins_per_hour":107,"avg_bin_weight":939.0,"bins_consumed":77,"bins_received":90,"full_pct":75,"grade_full":37,"grade_export":20,"grade_light_green":15,"grade_choice":13,"grade_juice":8,"grade_green":3,"grade_long_stem":3,"brix_high":63,"brix_mid":24,"brix_low":13,"size_18":2,"size_21":10,"size_24":18,"size_28":20,"size_32":29,"size_36":13,"size_40":8,"size_44":0},
+{"timestamp":"2026-01-29 17:02:00","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":220,"avg_bin_weight":924.0,"bins_consumed":22,"bins_received":250,"full_pct":84,"grade_full":34,"grade_export":10,"grade_light_green":35,"grade_choice":7,"grade_juice":1,"grade_green":7,"grade_long_stem":3,"brix_high":null,"brix_mid":null,"brix_low":null,"size_18":3,"size_21":14,"size_24":19,"size_28":18,"size_32":26,"size_36":11,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 17:06:55","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":256,"avg_bin_weight":926.0,"bins_consumed":46,"bins_received":250,"full_pct":87,"grade_full":39,"grade_export":10,"grade_light_green":32,"grade_choice":7,"grade_juice":1,"grade_green":6,"grade_long_stem":1,"brix_high":31,"brix_mid":31,"brix_low":38,"size_18":5,"size_21":15,"size_24":20,"size_28":19,"size_32":24,"size_36":10,"size_40":7,"size_44":0},
+{"timestamp":"2026-01-29 17:11:54","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":244,"avg_bin_weight":922.0,"bins_consumed":61,"bins_received":250,"full_pct":88,"grade_full":41,"grade_export":11,"grade_light_green":30,"grade_choice":7,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":39,"brix_mid":29,"brix_low":31,"size_18":5,"size_21":15,"size_24":21,"size_28":19,"size_32":23,"size_36":9,"size_40":6,"size_44":0},
+{"timestamp":"2026-01-29 17:16:54","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":237,"avg_bin_weight":922.0,"bins_consumed":83,"bins_received":250,"full_pct":89,"grade_full":41,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":37,"brix_mid":30,"brix_low":33,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":24,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:21:56","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":247,"avg_bin_weight":918.0,"bins_consumed":106,"bins_received":250,"full_pct":90,"grade_full":42,"grade_export":13,"grade_light_green":29,"grade_choice":6,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":41,"brix_mid":29,"brix_low":30,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:26:52","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":248,"avg_bin_weight":916.0,"bins_consumed":129,"bins_received":250,"full_pct":89,"grade_full":42,"grade_export":12,"grade_light_green":29,"grade_choice":6,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":39,"brix_mid":30,"brix_low":31,"size_18":5,"size_21":16,"size_24":21,"size_28":19,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:31:52","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":253,"avg_bin_weight":915.0,"bins_consumed":147,"bins_received":250,"full_pct":89,"grade_full":41,"grade_export":13,"grade_light_green":29,"grade_choice":6,"grade_juice":null,"grade_green":6,"grade_long_stem":1,"brix_high":40,"brix_mid":30,"brix_low":31,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:37:20","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":241,"avg_bin_weight":918.0,"bins_consumed":164,"bins_received":250,"full_pct":89,"grade_full":40,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":40,"brix_mid":30,"brix_low":30,"size_18":5,"size_21":16,"size_24":21,"size_28":20,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:41:52","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":232,"avg_bin_weight":917.0,"bins_consumed":179,"bins_received":250,"full_pct":89,"grade_full":40,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":41,"brix_mid":30,"brix_low":29,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:46:51","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":238,"avg_bin_weight":918.0,"bins_consumed":202,"bins_received":250,"full_pct":89,"grade_full":40,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":40,"brix_mid":30,"brix_low":29,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:51:52","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":238,"avg_bin_weight":920.0,"bins_consumed":221,"bins_received":250,"full_pct":89,"grade_full":40,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":40,"brix_mid":30,"brix_low":30,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":23,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 17:56:52","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":235,"avg_bin_weight":919.0,"bins_consumed":235,"bins_received":250,"full_pct":89,"grade_full":40,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":39,"brix_mid":31,"brix_low":30,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":24,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 18:01:53","prod_order":"PROD49443","variety":"Del Rey - Tango","bins_per_hour":229,"avg_bin_weight":920.0,"bins_consumed":247,"bins_received":250,"full_pct":89,"grade_full":40,"grade_export":12,"grade_light_green":30,"grade_choice":6,"grade_juice":null,"grade_green":7,"grade_long_stem":1,"brix_high":40,"brix_mid":30,"brix_low":30,"size_18":5,"size_21":15,"size_24":21,"size_28":20,"size_32":24,"size_36":9,"size_40":5,"size_44":0},
+{"timestamp":"2026-01-29 18:07:00","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":145,"avg_bin_weight":918.0,"bins_consumed":32,"bins_received":252,"full_pct":79,"grade_full":40,"grade_export":17,"grade_light_green":18,"grade_choice":14,"grade_juice":2,"grade_green":5,"grade_long_stem":1,"brix_high":null,"brix_mid":null,"brix_low":null,"size_18":12,"size_21":23,"size_24":21,"size_28":16,"size_32":14,"size_36":4,"size_40":2,"size_44":0},
+{"timestamp":"2026-01-29 18:11:53","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":177,"avg_bin_weight":926.0,"bins_consumed":53,"bins_received":302,"full_pct":82,"grade_full":44,"grade_export":20,"grade_light_green":15,"grade_choice":12,"grade_juice":1,"grade_green":4,"grade_long_stem":1,"brix_high":52,"brix_mid":26,"brix_low":23,"size_18":9,"size_21":20,"size_24":21,"size_28":17,"size_32":18,"size_36":6,"size_40":3,"size_44":0},
+{"timestamp":"2026-01-29 18:16:55","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":200,"avg_bin_weight":928.0,"bins_consumed":76,"bins_received":302,"full_pct":83,"grade_full":44,"grade_export":20,"grade_light_green":17,"grade_choice":11,"grade_juice":1,"grade_green":4,"grade_long_stem":1,"brix_high":51,"brix_mid":30,"brix_low":18,"size_18":8,"size_21":19,"size_24":20,"size_28":18,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:22:04","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":213,"avg_bin_weight":938.0,"bins_consumed":100,"bins_received":302,"full_pct":85,"grade_full":44,"grade_export":19,"grade_light_green":18,"grade_choice":10,"grade_juice":null,"grade_green":4,"grade_long_stem":1,"brix_high":54,"brix_mid":29,"brix_low":17,"size_18":7,"size_21":18,"size_24":20,"size_28":18,"size_32":21,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:26:55","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":228,"avg_bin_weight":939.0,"bins_consumed":121,"bins_received":302,"full_pct":85,"grade_full":44,"grade_export":20,"grade_light_green":18,"grade_choice":10,"grade_juice":null,"grade_green":4,"grade_long_stem":1,"brix_high":56,"brix_mid":29,"brix_low":15,"size_18":7,"size_21":18,"size_24":20,"size_28":18,"size_32":20,"size_36":8,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:31:55","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":232,"avg_bin_weight":939.0,"bins_consumed":146,"bins_received":302,"full_pct":85,"grade_full":44,"grade_export":20,"grade_light_green":18,"grade_choice":10,"grade_juice":null,"grade_green":3,"grade_long_stem":1,"brix_high":57,"brix_mid":28,"brix_low":15,"size_18":7,"size_21":18,"size_24":20,"size_28":19,"size_32":21,"size_36":8,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:36:55","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":235,"avg_bin_weight":942.0,"bins_consumed":169,"bins_received":302,"full_pct":85,"grade_full":43,"grade_export":21,"grade_light_green":18,"grade_choice":10,"grade_juice":null,"grade_green":4,"grade_long_stem":2,"brix_high":57,"brix_mid":28,"brix_low":14,"size_18":7,"size_21":18,"size_24":20,"size_28":19,"size_32":21,"size_36":8,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:41:55","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":241,"avg_bin_weight":939.0,"bins_consumed":193,"bins_received":302,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":null,"grade_green":3,"grade_long_stem":1,"brix_high":60,"brix_mid":27,"brix_low":13,"size_18":7,"size_21":18,"size_24":21,"size_28":19,"size_32":21,"size_36":8,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:46:56","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":246,"avg_bin_weight":937.0,"bins_consumed":214,"bins_received":302,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":1,"brix_high":61,"brix_mid":26,"brix_low":13,"size_18":7,"size_21":18,"size_24":21,"size_28":19,"size_32":21,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:52:11","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":244,"avg_bin_weight":936.0,"bins_consumed":237,"bins_received":352,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":25,"brix_low":12,"size_18":7,"size_21":19,"size_24":21,"size_28":19,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 18:56:56","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":250,"avg_bin_weight":934.0,"bins_consumed":262,"bins_received":352,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":null,"grade_green":3,"grade_long_stem":1,"brix_high":62,"brix_mid":26,"brix_low":12,"size_18":7,"size_21":19,"size_24":21,"size_28":19,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 19:01:56","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":249,"avg_bin_weight":933.0,"bins_consumed":281,"bins_received":352,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":26,"brix_low":13,"size_18":8,"size_21":19,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 19:06:56","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":230,"avg_bin_weight":933.0,"bins_consumed":281,"bins_received":352,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":26,"brix_low":13,"size_18":8,"size_21":19,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 19:11:58","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":220,"avg_bin_weight":933.0,"bins_consumed":281,"bins_received":402,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":26,"brix_low":13,"size_18":8,"size_21":19,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 19:19:24","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":197,"avg_bin_weight":933.0,"bins_consumed":281,"bins_received":452,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":26,"brix_low":13,"size_18":8,"size_21":19,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29 19:21:56","prod_order":"PROD49445","variety":"Redwood - Tango","bins_per_hour":191,"avg_bin_weight":933.0,"bins_consumed":281,"bins_received":452,"full_pct":84,"grade_full":43,"grade_export":21,"grade_light_green":17,"grade_choice":10,"grade_juice":1,"grade_green":3,"grade_long_stem":2,"brix_high":62,"brix_mid":26,"brix_low":13,"size_18":8,"size_21":19,"size_24":21,"size_28":18,"size_32":20,"size_36":7,"size_40":4,"size_44":0},
+{"timestamp":"2026-01-29T00:03:00-08:00","prod_order":"PROD49390","variety":"DWK Ventures I - Ranch 1 Blk 1","bins_per_hour":216,"avg_bin_weight":955.0,"bins_consumed":80,"bins_received":330,"full_pct":87,"grade_full":48,"grade_export":19,"grade_light_green":18,"grade_choice":8,"grade_juice":null,"grade_green":1,"grade_long_stem":1,"brix_high":72,"brix_mid":21,"brix_low":7,"size_18":5,"size_21":15,"size_24":23,"size_28":27,"size_32":15,"size_36":10,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-29T00:09:00-08:00","prod_order":"PROD49390","variety":"DWK Ventures I - Ranch 1 Blk 1","bins_per_hour":170,"avg_bin_weight":955.0,"bins_consumed":80,"bins_received":330,"full_pct":87,"grade_full":49,"grade_export":19,"grade_light_green":18,"grade_choice":8,"grade_juice":null,"grade_green":1,"grade_long_stem":1,"brix_high":72,"brix_mid":21,"brix_low":7,"size_18":4,"size_21":15,"size_24":23,"size_28":27,"size_32":15,"size_36":10,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-29T00:14:00-08:00","prod_order":"PROD49390","variety":"DWK Ventures I - Ranch 1 Blk 1","bins_per_hour":151,"avg_bin_weight":955.0,"bins_consumed":80,"bins_received":330,"full_pct":87,"grade_full":49,"grade_export":19,"grade_light_green":18,"grade_choice":8,"grade_juice":null,"grade_green":1,"grade_long_stem":1,"brix_high":72,"brix_mid":21,"brix_low":7,"size_18":4,"size_21":15,"size_24":23,"size_28":27,"size_32":15,"size_36":10,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-29T00:19:00-08:00","prod_order":"PROD49394","variety":"Harp-Tango","bins_per_hour":null,"avg_bin_weight":null,"bins_consumed":null,"bins_received":null,"full_pct":null,"grade_full":null,"grade_export":null,"grade_light_green":null,"grade_choice":null,"grade_juice":null,"grade_green":null,"grade_long_stem":null,"brix_high":null,"brix_mid":null,"brix_low":null,"size_18":null,"size_21":null,"size_24":null,"size_28":null,"size_32":null,"size_36":null,"size_40":null,"size_44":null},
+{"timestamp":"2026-01-29T00:24:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":117,"avg_bin_weight":688.0,"bins_consumed":14,"bins_received":0,"full_pct":91,"grade_full":53,"grade_export":20,"grade_light_green":7,"grade_choice":0,"grade_juice":null,"grade_green":7,"grade_long_stem":0,"brix_high":50,"brix_mid":50,"brix_low":0,"size_18":1,"size_21":7,"size_24":0,"size_28":3,"size_32":0,"size_36":2,"size_40":13,"size_44":null},
+{"timestamp":"2026-01-29T00:29:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":135,"avg_bin_weight":726.0,"bins_consumed":27,"bins_received":0,"full_pct":91,"grade_full":56,"grade_export":21,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":3,"grade_long_stem":0,"brix_high":81,"brix_mid":15,"brix_low":4,"size_18":16,"size_21":40,"size_24":32,"size_28":6,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T00:34:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":133,"avg_bin_weight":740.0,"bins_consumed":40,"bins_received":0,"full_pct":91,"grade_full":59,"grade_export":20,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":3,"grade_long_stem":0,"brix_high":88,"brix_mid":10,"brix_low":2,"size_18":15,"size_21":39,"size_24":33,"size_28":7,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T00:39:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":141,"avg_bin_weight":739.0,"bins_consumed":52,"bins_received":0,"full_pct":91,"grade_full":60,"grade_export":19,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":2,"grade_long_stem":0,"brix_high":92,"brix_mid":7,"brix_low":1,"size_18":13,"size_21":38,"size_24":36,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T00:44:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":149,"avg_bin_weight":734.0,"bins_consumed":67,"bins_received":0,"full_pct":91,"grade_full":59,"grade_export":20,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":2,"grade_long_stem":0,"brix_high":87,"brix_mid":11,"brix_low":2,"size_18":14,"size_21":38,"size_24":35,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T00:49:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":151,"avg_bin_weight":745.0,"bins_consumed":80,"bins_received":0,"full_pct":92,"grade_full":61,"grade_export":19,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":2,"grade_long_stem":0,"brix_high":89,"brix_mid":10,"brix_low":2,"size_18":13,"size_21":38,"size_24":36,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T00:54:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":147,"avg_bin_weight":736.0,"bins_consumed":91,"bins_received":0,"full_pct":92,"grade_full":60,"grade_export":19,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":2,"grade_long_stem":0,"brix_high":89,"brix_mid":9,"brix_low":2,"size_18":13,"size_21":38,"size_24":36,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T00:59:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":149,"avg_bin_weight":729.0,"bins_consumed":107,"bins_received":0,"full_pct":92,"grade_full":61,"grade_export":18,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":2,"grade_long_stem":0,"brix_high":89,"brix_mid":9,"brix_low":2,"size_18":13,"size_21":38,"size_24":37,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:04:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":154,"avg_bin_weight":721.0,"bins_consumed":120,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":18,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":1,"grade_long_stem":0,"brix_high":91,"brix_mid":8,"brix_low":1,"size_18":12,"size_21":38,"size_24":37,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:09:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":159,"avg_bin_weight":722.0,"bins_consumed":138,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":18,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":1,"grade_long_stem":0,"brix_high":92,"brix_mid":7,"brix_low":1,"size_18":12,"size_21":38,"size_24":37,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:14:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":164,"avg_bin_weight":730.0,"bins_consumed":156,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":18,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":1,"grade_long_stem":0,"brix_high":93,"brix_mid":6,"brix_low":1,"size_18":11,"size_21":38,"size_24":38,"size_28":8,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:19:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":169,"avg_bin_weight":731.0,"bins_consumed":174,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":18,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":94,"brix_mid":5,"brix_low":1,"size_18":11,"size_21":37,"size_24":38,"size_28":9,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:24:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":171,"avg_bin_weight":724.0,"bins_consumed":193,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":18,"grade_light_green":11,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":94,"brix_mid":5,"brix_low":1,"size_18":11,"size_21":37,"size_24":38,"size_28":9,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:29:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":173,"avg_bin_weight":738.0,"bins_consumed":207,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":18,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":37,"size_24":38,"size_28":9,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:34:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":173,"avg_bin_weight":748.0,"bins_consumed":221,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":18,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:39:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":169,"avg_bin_weight":744.0,"bins_consumed":231,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":18,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":39,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:44:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":168,"avg_bin_weight":747.0,"bins_consumed":244,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":18,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":3,"brix_low":1,"size_18":11,"size_21":37,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:49:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":171,"avg_bin_weight":747.0,"bins_consumed":265,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":19,"grade_light_green":10,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:54:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":175,"avg_bin_weight":744.0,"bins_consumed":283,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":19,"grade_light_green":9,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T01:59:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":179,"avg_bin_weight":751.0,"bins_consumed":305,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":20,"grade_light_green":9,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T02:04:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":184,"avg_bin_weight":744.0,"bins_consumed":328,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":20,"grade_light_green":9,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":39,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T02:09:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":186,"avg_bin_weight":754.0,"bins_consumed":347,"bins_received":0,"full_pct":92,"grade_full":61,"grade_export":21,"grade_light_green":8,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":11,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T02:14:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":188,"avg_bin_weight":759.0,"bins_consumed":371,"bins_received":0,"full_pct":91,"grade_full":61,"grade_export":21,"grade_light_green":8,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":94,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T02:19:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":192,"avg_bin_weight":755.0,"bins_consumed":389,"bins_received":0,"full_pct":91,"grade_full":61,"grade_export":21,"grade_light_green":8,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":10,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T02:24:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":195,"avg_bin_weight":754.0,"bins_consumed":414,"bins_received":0,"full_pct":91,"grade_full":61,"grade_export":21,"grade_light_green":8,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":94,"brix_mid":5,"brix_low":1,"size_18":11,"size_21":36,"size_24":38,"size_28":11,"size_32":0,"size_36":0,"size_40":0,"size_44":null},
+{"timestamp":"2026-01-29T02:29:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":198,"avg_bin_weight":764.0,"bins_consumed":436,"bins_received":0,"full_pct":91,"grade_full":61,"grade_export":22,"grade_light_green":7,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":10,"size_21":33,"size_24":36,"size_28":11,"size_32":1,"size_36":2,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-29T02:34:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":201,"avg_bin_weight":772.0,"bins_consumed":458,"bins_received":0,"full_pct":92,"grade_full":61,"grade_export":22,"grade_light_green":7,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":9,"size_21":30,"size_24":33,"size_28":10,"size_32":1,"size_36":6,"size_40":7,"size_44":null},
+{"timestamp":"2026-01-29T02:39:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":199,"avg_bin_weight":776.0,"bins_consumed":474,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":22,"grade_light_green":7,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":9,"size_21":28,"size_24":31,"size_28":9,"size_32":2,"size_36":8,"size_40":11,"size_44":null},
+{"timestamp":"2026-01-29T02:44:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":200,"avg_bin_weight":779.0,"bins_consumed":489,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":22,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":95,"brix_mid":4,"brix_low":1,"size_18":8,"size_21":27,"size_24":30,"size_28":9,"size_32":2,"size_36":9,"size_40":12,"size_44":null},
+{"timestamp":"2026-01-29T02:49:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":202,"avg_bin_weight":780.0,"bins_consumed":510,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":22,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":4,"brix_low":1,"size_18":8,"size_21":26,"size_24":28,"size_28":9,"size_32":2,"size_36":11,"size_40":14,"size_44":null},
+{"timestamp":"2026-01-29T02:54:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":202,"avg_bin_weight":782.0,"bins_consumed":529,"bins_received":0,"full_pct":92,"grade_full":62,"grade_export":23,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":4,"brix_low":1,"size_18":7,"size_21":24,"size_24":26,"size_28":9,"size_32":3,"size_36":12,"size_40":16,"size_44":null},
+{"timestamp":"2026-01-29T02:59:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":202,"avg_bin_weight":789.0,"bins_consumed":546,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":23,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":3,"brix_low":1,"size_18":7,"size_21":23,"size_24":25,"size_28":8,"size_32":3,"size_36":14,"size_40":18,"size_44":null},
+{"timestamp":"2026-01-29T03:04:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":197,"avg_bin_weight":788.0,"bins_consumed":548,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":23,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":3,"brix_low":1,"size_18":7,"size_21":22,"size_24":24,"size_28":8,"size_32":3,"size_36":15,"size_40":19,"size_44":null},
+{"timestamp":"2026-01-29T03:09:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":191,"avg_bin_weight":788.0,"bins_consumed":548,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":23,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":3,"brix_low":1,"size_18":7,"size_21":22,"size_24":24,"size_28":8,"size_32":3,"size_36":15,"size_40":20,"size_44":null},
+{"timestamp":"2026-01-29T03:14:00-08:00","prod_order":"REWORK-PROD49394","variety":"","bins_per_hour":186,"avg_bin_weight":788.0,"bins_consumed":548,"bins_received":0,"full_pct":92,"grade_full":63,"grade_export":23,"grade_light_green":6,"grade_choice":1,"grade_juice":null,"grade_green":0,"grade_long_stem":0,"brix_high":96,"brix_mid":3,"brix_low":1,"size_18":7,"size_21":22,"size_24":24,"size_28":8,"size_32":3,"size_36":15,"size_40":20,"size_44":null},
+{"timestamp":"2026-01-30 05:13:05","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":89,"avg_bin_weight":953.0,"bins_consumed":31,"bins_received":306,"full_pct":86,"grade_full":44,"grade_export":17,"grade_light_green":24,"grade_choice":8,"grade_juice":0,"grade_green":4,"grade_long_stem":null,"brix_high":53,"brix_mid":28,"brix_low":20,"size_18":null,"size_21":17,"size_24":22,"size_28":20,"size_32":22,"size_36":7,"size_40":5,"size_44":null},
+{"timestamp":"2026-01-30 05:17:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":121,"avg_bin_weight":943.0,"bins_consumed":51,"bins_received":306,"full_pct":85,"grade_full":42,"grade_export":18,"grade_light_green":22,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":null,"brix_high":56,"brix_mid":27,"brix_low":17,"size_18":5,"size_21":18,"size_24":23,"size_28":20,"size_32":21,"size_36":7,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:22:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":135,"avg_bin_weight":937.0,"bins_consumed":70,"bins_received":306,"full_pct":85,"grade_full":43,"grade_export":17,"grade_light_green":21,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":null,"brix_high":58,"brix_mid":25,"brix_low":17,"size_18":5,"size_21":17,"size_24":23,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:27:56","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":157,"avg_bin_weight":933.0,"bins_consumed":94,"bins_received":306,"full_pct":85,"grade_full":43,"grade_export":17,"grade_light_green":22,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":57,"brix_mid":26,"brix_low":17,"size_18":5,"size_21":17,"size_24":23,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:32:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":178,"avg_bin_weight":932.0,"bins_consumed":121,"bins_received":306,"full_pct":85,"grade_full":43,"grade_export":17,"grade_light_green":22,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":59,"brix_mid":26,"brix_low":15,"size_18":5,"size_21":17,"size_24":22,"size_28":19,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:37:56","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":191,"avg_bin_weight":938.0,"bins_consumed":147,"bins_received":306,"full_pct":85,"grade_full":42,"grade_export":17,"grade_light_green":22,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":2,"brix_high":59,"brix_mid":26,"brix_low":15,"size_18":5,"size_21":17,"size_24":22,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:42:59","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":201,"avg_bin_weight":937.0,"bins_consumed":167,"bins_received":306,"full_pct":84,"grade_full":43,"grade_export":16,"grade_light_green":22,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":2,"brix_high":60,"brix_mid":26,"brix_low":14,"size_18":5,"size_21":17,"size_24":22,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:47:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":209,"avg_bin_weight":934.0,"bins_consumed":194,"bins_received":306,"full_pct":84,"grade_full":42,"grade_export":17,"grade_light_green":21,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":3,"brix_high":61,"brix_mid":26,"brix_low":13,"size_18":5,"size_21":17,"size_24":22,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:52:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":217,"avg_bin_weight":938.0,"bins_consumed":221,"bins_received":306,"full_pct":84,"grade_full":42,"grade_export":18,"grade_light_green":21,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":3,"brix_high":62,"brix_mid":25,"brix_low":13,"size_18":5,"size_21":17,"size_24":22,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 05:57:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":225,"avg_bin_weight":937.0,"bins_consumed":248,"bins_received":306,"full_pct":84,"grade_full":42,"grade_export":18,"grade_light_green":21,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":3,"brix_high":62,"brix_mid":25,"brix_low":13,"size_18":5,"size_21":17,"size_24":23,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 06:02:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":232,"avg_bin_weight":936.0,"bins_consumed":274,"bins_received":306,"full_pct":84,"grade_full":42,"grade_export":18,"grade_light_green":20,"grade_choice":8,"grade_juice":0,"grade_green":4,"grade_long_stem":3,"brix_high":63,"brix_mid":24,"brix_low":13,"size_18":5,"size_21":17,"size_24":23,"size_28":20,"size_32":22,"size_36":8,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 06:07:57","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":236,"avg_bin_weight":934.0,"bins_consumed":295,"bins_received":306,"full_pct":83,"grade_full":42,"grade_export":18,"grade_light_green":20,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":3,"brix_high":63,"brix_mid":24,"brix_low":13,"size_18":5,"size_21":17,"size_24":23,"size_28":20,"size_32":22,"size_36":7,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 06:12:58","prod_order":"PROD49460","variety":"Podolsky - Tango","bins_per_hour":223,"avg_bin_weight":934.0,"bins_consumed":301,"bins_received":306,"full_pct":83,"grade_full":42,"grade_export":18,"grade_light_green":20,"grade_choice":9,"grade_juice":0,"grade_green":4,"grade_long_stem":4,"brix_high":63,"brix_mid":24,"brix_low":13,"size_18":5,"size_21":17,"size_24":23,"size_28":20,"size_32":22,"size_36":7,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 06:18:11","prod_order":"PROD49461","variety":"Tahmazian Farming - Helen Ranch","bins_per_hour":127,"avg_bin_weight":896.0,"bins_consumed":19,"bins_received":127,"full_pct":83,"grade_full":29,"grade_export":2,"grade_light_green":51,"grade_choice":4,"grade_juice":1,"grade_green":6,"grade_long_stem":4,"brix_high":61,"brix_mid":20,"brix_low":20,"size_18":5,"size_21":16,"size_24":23,"size_28":13,"size_32":22,"size_36":4,"size_40":5,"size_44":5},
+{"timestamp":"2026-01-30 06:22:59","prod_order":"PROD49461","variety":"Tahmazian Farming - Helen Ranch","bins_per_hour":200,"avg_bin_weight":895.0,"bins_consumed":46,"bins_received":127,"full_pct":89,"grade_full":49,"grade_export":18,"grade_light_green":23,"grade_choice":5,"grade_juice":0,"grade_green":0,"grade_long_stem":2,"brix_high":89,"brix_mid":9,"brix_low":2,"size_18":4,"size_21":12,"size_24":17,"size_28":17,"size_32":23,"size_36":11,"size_40":12,"size_44":1},
+{"timestamp":"2026-01-30 06:28:00","prod_order":"PROD49461","variety":"Tahmazian Farming - Helen Ranch","bins_per_hour":225,"avg_bin_weight":895.0,"bins_consumed":72,"bins_received":127,"full_pct":90,"grade_full":50,"grade_export":18,"grade_light_green":23,"grade_choice":5,"grade_juice":0,"grade_green":0,"grade_long_stem":2,"brix_high":88,"brix_mid":10,"brix_low":2,"size_18":4,"size_21":11,"size_24":17,"size_28":17,"size_32":24,"size_36":11,"size_40":12,"size_44":2},
+{"timestamp":"2026-01-30 06:32:58","prod_order":"PROD49461","variety":"Tahmazian Farming - Helen Ranch","bins_per_hour":245,"avg_bin_weight":893.0,"bins_consumed":93,"bins_received":127,"full_pct":90,"grade_full":50,"grade_export":18,"grade_light_green":22,"grade_choice":5,"grade_juice":0,"grade_green":0,"grade_long_stem":2,"brix_high":89,"brix_mid":9,"brix_low":2,"size_18":4,"size_21":11,"size_24":17,"size_28":17,"size_32":24,"size_36":12,"size_40":11,"size_44":2},
+{"timestamp":"2026-01-30 06:37:59","prod_order":"PROD49461","variety":"Tahmazian Farming - Helen Ranch","bins_per_hour":248,"avg_bin_weight":895.0,"bins_consumed":119,"bins_received":127,"full_pct":90,"grade_full":50,"grade_export":19,"grade_light_green":21,"grade_choice":5,"grade_juice":0,"grade_green":0,"grade_long_stem":2,"brix_high":88,"brix_mid":10,"brix_low":2,"size_18":4,"size_21":11,"size_24":16,"size_28":17,"size_32":24,"size_36":12,"size_40":12,"size_44":2},
+{"timestamp":"2026-01-30 06:42:58","prod_order":"PROD49461","variety":"Tahmazian Farming - Helen Ranch","bins_per_hour":221,"avg_bin_weight":895.0,"bins_consumed":126,"bins_received":127,"full_pct":90,"grade_full":50,"grade_export":20,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":0,"grade_long_stem":2,"brix_high":89,"brix_mid":9,"brix_low":2,"size_18":4,"size_21":11,"size_24":16,"size_28":17,"size_32":24,"size_36":12,"size_40":12,"size_44":2},
+{"timestamp":"2026-01-30 06:48:08","prod_order":"PROD49462","variety":"G28 - Tango","bins_per_hour":231,"avg_bin_weight":950.0,"bins_consumed":30,"bins_received":186,"full_pct":79,"grade_full":43,"grade_export":31,"grade_light_green":8,"grade_choice":12,"grade_juice":3,"grade_green":0,"grade_long_stem":2,"brix_high":85,"brix_mid":12,"brix_low":4,"size_18":null,"size_21":7,"size_24":17,"size_28":22,"size_32":35,"size_36":10,"size_40":8,"size_44":null},
+{"timestamp":"2026-01-30 06:52:58","prod_order":"PROD49462","variety":"G28 - Tango","bins_per_hour":245,"avg_bin_weight":950.0,"bins_consumed":54,"bins_received":186,"full_pct":77,"grade_full":38,"grade_export":24,"grade_light_green":13,"grade_choice":14,"grade_juice":3,"grade_green":2,"grade_long_stem":4,"brix_high":75,"brix_mid":17,"brix_low":7,"size_18":2,"size_21":8,"size_24":17,"size_28":21,"size_32":31,"size_36":12,"size_40":8,"size_44":null},
+{"timestamp":"2026-01-30 06:57:58","prod_order":"PROD49462","variety":"G28 - Tango","bins_per_hour":268,"avg_bin_weight":946.0,"bins_consumed":75,"bins_received":186,"full_pct":75,"grade_full":37,"grade_export":23,"grade_light_green":13,"grade_choice":14,"grade_juice":3,"grade_green":2,"grade_long_stem":5,"brix_high":75,"brix_mid":17,"brix_low":7,"size_18":2,"size_21":9,"size_24":17,"size_28":21,"size_32":30,"size_36":12,"size_40":8,"size_44":null},
+{"timestamp":"2026-01-30 07:02:59","prod_order":"PROD49462","variety":"G28 - Tango","bins_per_hour":247,"avg_bin_weight":944.0,"bins_consumed":94,"bins_received":186,"full_pct":74,"grade_full":36,"grade_export":22,"grade_light_green":14,"grade_choice":15,"grade_juice":3,"grade_green":2,"grade_long_stem":5,"brix_high":74,"brix_mid":18,"brix_low":8,"size_18":2,"size_21":10,"size_24":18,"size_28":21,"size_32":29,"size_36":12,"size_40":8,"size_44":null},
+{"timestamp":"2026-01-30 07:13:06","prod_order":"PROD49479","variety":"Southridge - Tango 18","bins_per_hour":283,"avg_bin_weight":942.0,"bins_consumed":51,"bins_received":346,"full_pct":73,"grade_full":35,"grade_export":10,"grade_light_green":25,"grade_choice":11,"grade_juice":1,"grade_green":4,"grade_long_stem":1,"brix_high":67,"brix_mid":22,"brix_low":11,"size_18":1,"size_21":7,"size_24":15,"size_28":19,"size_32":32,"size_36":14,"size_40":10,"size_44":null},
+{"timestamp":"2026-01-30 07:18:38","prod_order":"PROD49479","variety":"Southridge - Tango 18","bins_per_hour":285,"avg_bin_weight":944.0,"bins_consumed":77,"bins_received":346,"full_pct":72,"grade_full":35,"grade_export":9,"grade_light_green":25,"grade_choice":11,"grade_juice":1,"grade_green":4,"grade_long_stem":1,"brix_high":67,"brix_mid":22,"brix_low":12,"size_18":1,"size_21":7,"size_24":14,"size_28":18,"size_32":32,"size_36":16,"size_40":12,"size_44":null},
+{"timestamp":"2026-01-30 07:23:50","prod_order":"PROD49479","variety":"Southridge - Tango 18","bins_per_hour":297,"avg_bin_weight":942.0,"bins_consumed":104,"bins_received":346,"full_pct":71,"grade_full":35,"grade_export":10,"grade_light_green":23,"grade_choice":11,"grade_juice":0,"grade_green":4,"grade_long_stem":2,"brix_high":72,"brix_mid":19,"brix_low":9,"size_18":1,"size_21":6,"size_24":13,"size_28":18,"size_32":31,"size_36":16,"size_40":13,"size_44":1},
+{"timestamp":"2026-01-30 07:28:50","prod_order":"PROD49479","variety":"Southridge - Tango 18","bins_per_hour":256,"avg_bin_weight":942.0,"bins_consumed":115,"bins_received":346,"full_pct":71,"grade_full":35,"grade_export":9,"grade_light_green":24,"grade_choice":11,"grade_juice":1,"grade_green":4,"grade_long_stem":2,"brix_high":73,"brix_mid":18,"brix_low":9,"size_18":1,"size_21":6,"size_24":13,"size_28":18,"size_32":32,"size_36":16,"size_40":13,"size_44":1},
+{"timestamp":"2026-01-30 07:33:56","prod_order":"PROD49480","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":208,"avg_bin_weight":936.0,"bins_consumed":27,"bins_received":140,"full_pct":78,"grade_full":36,"grade_export":15,"grade_light_green":20,"grade_choice":10,"grade_juice":0,"grade_green":8,"grade_long_stem":0,"brix_high":67,"brix_mid":17,"brix_low":17,"size_18":5,"size_21":14,"size_24":27,"size_28":19,"size_32":20,"size_36":8,"size_40":5,"size_44":null},
+{"timestamp":"2026-01-30 07:38:49","prod_order":"PROD49480","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":241,"avg_bin_weight":912.0,"bins_consumed":53,"bins_received":140,"full_pct":90,"grade_full":43,"grade_export":23,"grade_light_green":21,"grade_choice":5,"grade_juice":0,"grade_green":4,"grade_long_stem":0,"brix_high":66,"brix_mid":26,"brix_low":8,"size_18":5,"size_21":11,"size_24":23,"size_28":20,"size_32":25,"size_36":9,"size_40":6,"size_44":null},
+{"timestamp":"2026-01-30 07:43:50","prod_order":"PROD49480","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":261,"avg_bin_weight":916.0,"bins_consumed":73,"bins_received":140,"full_pct":91,"grade_full":43,"grade_export":24,"grade_light_green":21,"grade_choice":4,"grade_juice":0,"grade_green":4,"grade_long_stem":0,"brix_high":65,"brix_mid":25,"brix_low":10,"size_18":5,"size_21":13,"size_24":20,"size_28":20,"size_32":25,"size_36":9,"size_40":6,"size_44":null},
+{"timestamp":"2026-01-30 07:48:50","prod_order":"PROD49480","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":268,"avg_bin_weight":921.0,"bins_consumed":99,"bins_received":140,"full_pct":91,"grade_full":44,"grade_export":24,"grade_light_green":21,"grade_choice":4,"grade_juice":0,"grade_green":3,"grade_long_stem":0,"brix_high":65,"brix_mid":25,"brix_low":11,"size_18":4,"size_21":14,"size_24":21,"size_28":20,"size_32":25,"size_36":9,"size_40":6,"size_44":null},
+{"timestamp":"2026-01-30 07:53:51","prod_order":"PROD49480","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":270,"avg_bin_weight":921.0,"bins_consumed":127,"bins_received":140,"full_pct":92,"grade_full":45,"grade_export":24,"grade_light_green":21,"grade_choice":4,"grade_juice":0,"grade_green":3,"grade_long_stem":0,"brix_high":64,"brix_mid":26,"brix_low":10,"size_18":4,"size_21":13,"size_24":20,"size_28":20,"size_32":25,"size_36":9,"size_40":6,"size_44":null},
+{"timestamp":"2026-01-30 07:58:52","prod_order":"PROD49480","variety":"Triple K Orchards LLC - Mand R130M","bins_per_hour":255,"avg_bin_weight":922.0,"bins_consumed":140,"bins_received":140,"full_pct":92,"grade_full":45,"grade_export":23,"grade_light_green":21,"grade_choice":4,"grade_juice":0,"grade_green":3,"grade_long_stem":0,"brix_high":63,"brix_mid":27,"brix_low":10,"size_18":4,"size_21":14,"size_24":20,"size_28":20,"size_32":25,"size_36":9,"size_40":5,"size_44":null},
+{"timestamp":"2026-01-30 08:03:52","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":277,"avg_bin_weight":909.0,"bins_consumed":36,"bins_received":709,"full_pct":88,"grade_full":44,"grade_export":20,"grade_light_green":21,"grade_choice":6,"grade_juice":0,"grade_green":5,"grade_long_stem":0,"brix_high":70,"brix_mid":22,"brix_low":8,"size_18":9,"size_21":19,"size_24":24,"size_28":17,"size_32":17,"size_36":5,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 08:08:50","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":290,"avg_bin_weight":912.0,"bins_consumed":58,"bins_received":709,"full_pct":89,"grade_full":43,"grade_export":21,"grade_light_green":21,"grade_choice":6,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":71,"brix_mid":20,"brix_low":9,"size_18":6,"size_21":21,"size_24":23,"size_28":18,"size_32":19,"size_36":6,"size_40":4,"size_44":null},
+{"timestamp":"2026-01-30 08:13:51","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":293,"avg_bin_weight":906.0,"bins_consumed":82,"bins_received":709,"full_pct":90,"grade_full":45,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":1,"brix_high":73,"brix_mid":19,"brix_low":7,"size_18":8,"size_21":21,"size_24":23,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:18:53","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":255,"avg_bin_weight":907.0,"bins_consumed":97,"bins_received":709,"full_pct":90,"grade_full":45,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":0,"brix_high":73,"brix_mid":20,"brix_low":7,"size_18":8,"size_21":20,"size_24":23,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:23:50","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":249,"avg_bin_weight":908.0,"bins_consumed":117,"bins_received":709,"full_pct":90,"grade_full":45,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":1,"brix_high":74,"brix_mid":19,"brix_low":7,"size_18":8,"size_21":20,"size_24":23,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:28:51","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":251,"avg_bin_weight":910.0,"bins_consumed":138,"bins_received":709,"full_pct":90,"grade_full":45,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":1,"brix_high":74,"brix_mid":19,"brix_low":7,"size_18":9,"size_21":20,"size_24":23,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:33:53","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":256,"avg_bin_weight":903.0,"bins_consumed":159,"bins_received":709,"full_pct":90,"grade_full":46,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":1,"brix_high":74,"brix_mid":20,"brix_low":6,"size_18":9,"size_21":21,"size_24":23,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:38:54","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":229,"avg_bin_weight":903.0,"bins_consumed":160,"bins_received":709,"full_pct":90,"grade_full":45,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":1,"brix_high":73,"brix_mid":20,"brix_low":7,"size_18":9,"size_21":21,"size_24":22,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:43:52","prod_order":"PROD49481","variety":"Redwood - Tango","bins_per_hour":204,"avg_bin_weight":904.0,"bins_consumed":163,"bins_received":709,"full_pct":90,"grade_full":45,"grade_export":22,"grade_light_green":20,"grade_choice":5,"grade_juice":0,"grade_green":3,"grade_long_stem":1,"brix_high":73,"brix_mid":25,"brix_low":10,"size_18":9,"size_21":21,"size_24":23,"size_28":18,"size_32":18,"size_36":5,"size_40":3,"size_44":null},
+{"timestamp":"2026-01-30 08:49:17","prod_order":"PROD49482","variety":"Jose Jimenez - Jimenez Tivy","bins_per_hour":157,"avg_bin_weight":915.0,"bins_consumed":36,"bins_received":36,"full_pct":86,"grade_full":45,"grade_export":29,"grade_light_green":10,"grade_choice":7,"grade_juice":0,"grade_green":2,"grade_long_stem":null,"brix_high":92,"brix_mid":6,"brix_low":2,"size_18":null,"size_21":4,"size_24":8,"size_28":11,"size_32":22,"size_36":17,"size_40":28,"size_44":9},
+{"timestamp":"2026-01-30 08:53:58","prod_order":"PROD49486","variety":"PAI Hills Valley Ranches LLC - Cove Blk 1,3,5,6,7","bins_per_hour":338,"avg_bin_weight":951.0,"bins_consumed":27,"bins_received":138,"full_pct":83,"grade_full":50,"grade_export":25,"grade_light_green":11,"grade_choice":7,"grade_juice":0,"grade_green":2,"grade_long_stem":2,"brix_high":95,"brix_mid":3,"brix_low":1,"size_18":6,"size_21":34,"size_24":24,"size_28":10,"size_32":12,"size_36":2,"size_40":7,"size_44":1},
+{"timestamp":"2026-01-30 08:58:53","prod_order":"PROD49486","variety":"PAI Hills Valley Ranches LLC - Cove Blk 1,3,5,6,7","bins_per_hour":327,"avg_bin_weight":949.0,"bins_consumed":49,"bins_received":138,"full_pct":87,"grade_full":42,"grade_export":20,"grade_light_green":23,"grade_choice":7,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":68,"brix_mid":23,"brix_low":10,"size_18":11,"size_21":26,"size_24":25,"size_28":15,"size_32":13,"size_36":3,"size_40":2,"size_44":null},
+{"timestamp":"2026-01-30 09:03:51","prod_order":"PROD49486","variety":"PAI Hills Valley Ranches LLC - Cove Blk 1,3,5,6,7","bins_per_hour":322,"avg_bin_weight":949.0,"bins_consumed":74,"bins_received":138,"full_pct":87,"grade_full":42,"grade_export":18,"grade_light_green":24,"grade_choice":7,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":65,"brix_mid":25,"brix_low":10,"size_18":11,"size_21":26,"size_24":25,"size_28":16,"size_32":13,"size_36":3,"size_40":2,"size_44":null},
+{"timestamp":"2026-01-30 09:08:51","prod_order":"PROD49486","variety":"PAI Hills Valley Ranches LLC - Cove Blk 1,3,5,6,7","bins_per_hour":306,"avg_bin_weight":963.0,"bins_consumed":101,"bins_received":138,"full_pct":87,"grade_full":41,"grade_export":17,"grade_light_green":25,"grade_choice":7,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":64,"brix_mid":26,"brix_low":9,"size_18":11,"size_21":26,"size_24":25,"size_28":16,"size_32":13,"size_36":3,"size_40":2,"size_44":null},
+{"timestamp":"2026-01-30 09:13:51","prod_order":"PROD49486","variety":"PAI Hills Valley Ranches LLC - Cove Blk 1,3,5,6,7","bins_per_hour":307,"avg_bin_weight":959.0,"bins_consumed":129,"bins_received":138,"full_pct":86,"grade_full":41,"grade_export":16,"grade_light_green":25,"grade_choice":7,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":60,"brix_mid":29,"brix_low":12,"size_18":11,"size_21":26,"size_24":25,"size_28":16,"size_32":14,"size_36":4,"size_40":2,"size_44":null},
+{"timestamp":"2026-01-30 09:18:51","prod_order":"PROD49486","variety":"PAI Hills Valley Ranches LLC - Cove Blk 1,3,5,6,7","bins_per_hour":272,"avg_bin_weight":959.0,"bins_consumed":136,"bins_received":138,"full_pct":86,"grade_full":41,"grade_export":16,"grade_light_green":26,"grade_choice":7,"grade_juice":0,"grade_green":4,"grade_long_stem":1,"brix_high":59,"brix_mid":29,"brix_low":12,"size_18":11,"size_21":26,"size_24":25,"size_28":16,"size_32":13,"size_36":3,"size_40":2,"size_44":null},
+{"timestamp":"2026-01-30 09:23:51","prod_order":"PROD49487","variety":"Moya - Minkler","bins_per_hour":360,"avg_bin_weight":879.0,"bins_consumed":36,"bins_received":64,"full_pct":91,"grade_full":46,"grade_export":26,"grade_light_green":18,"grade_choice":5,"grade_juice":0,"grade_green":2,"grade_long_stem":0,"brix_high":66,"brix_mid":22,"brix_low":12,"size_18":3,"size_21":11,"size_24":17,"size_28":14,"size_32":26,"size_36":12,"size_40":13,"size_44":3},
+{"timestamp":"2026-01-30 09:28:52","prod_order":"PROD49487","variety":"Moya - Minkler","bins_per_hour":344,"avg_bin_weight":861.0,"bins_consumed":62,"bins_received":64,"full_pct":91,"grade_full":43,"grade_export":28,"grade_light_green":18,"grade_choice":5,"grade_juice":0,"grade_green":2,"grade_long_stem":0,"brix_high":68,"brix_mid":21,"brix_low":11,"size_18":3,"size_21":10,"size_24":14,"size_28":16,"size_32":25,"size_36":13,"size_40":15,"size_44":3},
+{"timestamp":"2026-01-30 09:33:52","prod_order":"PROD49487","variety":"Moya - Minkler","bins_per_hour":229,"avg_bin_weight":861.0,"bins_consumed":64,"bins_received":64,"full_pct":91,"grade_full":44,"grade_export":27,"grade_light_green":18,"grade_choice":4,"grade_juice":0,"grade_green":2,"grade_long_stem":0,"brix_high":68,"brix_mid":32,"brix_low":13,"size_18":3,"size_21":9,"size_24":14,"size_28":16,"size_32":25,"size_36":14,"size_40":16,"size_44":3},
+{"timestamp":"2026-01-30 09:38:52","prod_order":"PROD49488","variety":"Gonzalez-Tango","bins_per_hour":261,"avg_bin_weight":966.0,"bins_consumed":47,"bins_received":162,"full_pct":91,"grade_full":45,"grade_export":28,"grade_light_green":17,"grade_choice":4,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":77,"brix_mid":17,"brix_low":6,"size_18":2,"size_21":7,"size_24":16,"size_28":18,"size_32":31,"size_36":14,"size_40":11,"size_44":null}]
+;
+        
+        // Order colors
+        const orderColors = {};
+        const colorPalette = [
+            '#00d4aa', '#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3',
+            '#f38181', '#aa96da', '#fcbad3', '#a8d8ea', '#ff9a3c'
+        ];
+        let colorIndex = 0;
+        
+        // Get unique orders and assign colors
+        const orders = [...new Set(DATA.map(d => d.prod_order))];
+        orders.forEach(order => {
+            orderColors[order] = colorPalette[colorIndex % colorPalette.length];
+            colorIndex++;
+        });
+        
+        // Build legend
+        const legendHtml = orders.map(order => {
+            const variety = DATA.find(d => d.prod_order === order)?.variety || order;
+            return `<div class="order-item">
+                <div class="order-color" style="background: ${orderColors[order]}"></div>
+                <span>${order}: ${variety}</span>
+            </div>`;
+        }).join('');
+        document.getElementById('orderLegend').innerHTML = legendHtml;
+        
+        // Update timestamp
+        if (DATA.length > 0) {
+            document.getElementById('lastUpdate').textContent = 
+                `Last update: ${DATA[DATA.length - 1].timestamp} | ${DATA.length} data points`;
+        }
+        
+        // Chart defaults
+        Chart.defaults.color = '#888';
+        Chart.defaults.borderColor = '#333';
+        
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => {
+                            const d = DATA[items[0].dataIndex];
+                            return `${d.timestamp}\n${d.prod_order}: ${d.variety}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    ticks: { 
+                        maxTicksLimit: 12,
+                        callback: function(val, idx) {
+                            const ts = DATA[idx]?.timestamp || '';
+                            return ts.split(' ')[1]?.substring(0, 5) || '';
+                        }
+                    },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: false,
+                    grid: { color: '#333' }
+                }
+            }
+        };
+        
+        function createChart(canvasId, label, dataKey, color = '#00d4aa', threshold = null) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const values = DATA.map(d => d[dataKey]);
+            const colors = DATA.map(d => orderColors[d.prod_order] || color);
+            
+            const datasets = [{
+                label: label,
+                data: values,
+                borderColor: colors,
+                backgroundColor: colors.map(c => c + '40'),
+                borderWidth: 2,
+                pointRadius: 1,
+                tension: 0.3,
+                segment: {
+                    borderColor: ctx => {
+                        const p0Order = DATA[ctx.p0DataIndex]?.prod_order;
+                        const p1Order = DATA[ctx.p1DataIndex]?.prod_order;
+                        if (p0Order !== p1Order) return 'transparent';
+                        return orderColors[p0Order] || color;
+                    }
+                }
+            }];
+            
+            if (threshold !== null) {
+                datasets.push({
+                    label: 'Threshold',
+                    data: Array(DATA.length).fill(threshold),
+                    borderColor: '#ff6b6b',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: { labels: DATA.map(d => d.timestamp), datasets },
+                options: chartOptions
+            });
+        }
+        
+        // Create all charts
+        createChart('binsPerHourChart', 'Bins/Hr', 'bins_per_hour');
+        createChart('avgWeightChart', 'Weight', 'avg_bin_weight');
+        createChart('binsConsumedChart', 'Consumed', 'bins_consumed');
+        createChart('fullPctChart', 'Full %', 'full_pct');
+        createChart('gradeFullChart', 'Full', 'grade_full');
+        createChart('gradeExportChart', 'Export', 'grade_export');
+        createChart('gradeLightGreenChart', 'Light Green', 'grade_light_green');
+        createChart('gradeChoiceChart', 'Choice', 'grade_choice', '#ffe66d', 12);
+        createChart('gradeJuiceChart', 'Juice', 'grade_juice');
+        createChart('gradeGreenChart', 'Green', 'grade_green');
+        createChart('brixHighChart', 'High', 'brix_high');
+        createChart('brixMidChart', 'Mid', 'brix_mid');
+        createChart('brixLowChart', 'Low', 'brix_low');
+        
+        // Defects chart (Choice + Juice)
+        const defectsCtx = document.getElementById('defectsChart').getContext('2d');
+        const defectValues = DATA.map(d => (d.grade_choice || 0) + (d.grade_juice || 0));
+        new Chart(defectsCtx, {
+            type: 'line',
+            data: {
+                labels: DATA.map(d => d.timestamp),
+                datasets: [
+                    {
+                        label: 'Defects',
+                        data: defectValues,
+                        borderColor: DATA.map(d => orderColors[d.prod_order]),
+                        borderWidth: 2,
+                        pointRadius: 1,
+                        tension: 0.3,
+                        fill: false,
+                        segment: {
+                            borderColor: ctx => {
+                                const p0Order = DATA[ctx.p0DataIndex]?.prod_order;
+                                const p1Order = DATA[ctx.p1DataIndex]?.prod_order;
+                                if (p0Order !== p1Order) return 'transparent';
+                                return orderColors[p0Order];
+                            }
+                        }
+                    },
+                    {
+                        label: 'Alert Threshold',
+                        data: Array(DATA.length).fill(12),
+                        borderColor: '#ff6b6b',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: chartOptions
+        });
+        
+        // Size distribution stacked area chart (grouped: Large, Medium, Small)
+        const sizeCtx = document.getElementById('sizeChart').getContext('2d');
+        const sizeGroups = [
+            { label: 'Large (18+21)', calc: d => (d.size_18 || 0) + (d.size_21 || 0), color: '#00d4aa' },
+            { label: 'Medium (24+28+32)', calc: d => (d.size_24 || 0) + (d.size_28 || 0) + (d.size_32 || 0), color: '#ffe66d' },
+            { label: 'Small (36+40+44)', calc: d => (d.size_36 || 0) + (d.size_40 || 0) + (d.size_44 || 0), color: '#ff6b6b' }
+        ];
+        new Chart(sizeCtx, {
+            type: 'line',
+            data: {
+                labels: DATA.map(d => d.timestamp),
+                datasets: sizeGroups.map(group => ({
+                    label: group.label,
+                    data: DATA.map(d => group.calc(d)),
+                    borderColor: group.color,
+                    backgroundColor: group.color + '60',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    segment: {
+                        borderColor: ctx => {
+                            const p0Order = DATA[ctx.p0DataIndex]?.prod_order;
+                            const p1Order = DATA[ctx.p1DataIndex]?.prod_order;
+                            if (p0Order !== p1Order) return 'transparent';
+                            return group.color;
+                        }
+                    }
+                }))
+            },
+            options: {
+                ...chartOptions,
+                plugins: {
+                    ...chartOptions.plugins,
+                    legend: { display: true, position: 'top' }
+                },
+                scales: {
+                    ...chartOptions.scales,
+                    y: { stacked: true, max: 100 }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

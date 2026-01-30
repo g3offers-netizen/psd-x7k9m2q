@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPC-Presort Time Series Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e; 
+            color: #eee; 
+            padding: 20px;
+        }
+        h1 { text-align: center; color: #00d4aa; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 20px; }
+        .updated { text-align: center; color: #666; font-size: 12px; margin-bottom: 30px; }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        .chart-container { 
+            background: #16213e; 
+            border-radius: 12px; 
+            padding: 20px;
+            min-height: 300px;
+        }
+        .chart-container.full-width { grid-column: 1 / -1; }
+        .chart-container h3 { color: #00d4aa; margin-bottom: 15px; font-size: 16px; }
+        
+        .order-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #16213e;
+            border-radius: 12px;
+        }
+        .order-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .order-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        canvas { max-height: 250px; }
+    </style>
+</head>
+<body>
+    <h1>📊 FPC-Presort Time Series</h1>
+    <p class="subtitle">Last 24 Hours — All Metrics</p>
+    <p class="updated" id="lastUpdate"></p>
+    
+    <div class="order-legend" id="orderLegend"></div>
+    
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h3>🏭 Bins Per Hour</h3>
+            <canvas id="binsPerHourChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>⚖️ Avg Bin Weight (lbs)</h3>
+            <canvas id="avgWeightChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>📦 Bins Consumed</h3>
+            <canvas id="binsConsumedChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>✅ Full %</h3>
+            <canvas id="fullPctChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🟢 Grade: Full %</h3>
+            <canvas id="gradeFullChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>📤 Grade: Export %</h3>
+            <canvas id="gradeExportChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🍋 Grade: Light Green %</h3>
+            <canvas id="gradeLightGreenChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>⚠️ Grade: Choice %</h3>
+            <canvas id="gradeChoiceChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🧃 Grade: Juice %</h3>
+            <canvas id="gradeJuiceChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌿 Grade: Green %</h3>
+            <canvas id="gradeGreenChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌡️ Brix High %</h3>
+            <canvas id="brixHighChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌡️ Brix Mid %</h3>
+            <canvas id="brixMidChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🌡️ Brix Low %</h3>
+            <canvas id="brixLowChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>🔴 Defects (Choice + Juice) %</h3>
+            <canvas id="defectsChart"></canvas>
+        </div>
+        <div class="chart-container full-width">
+            <h3>📏 Size Distribution (Large / Medium / Small)</h3>
+            <canvas id="sizeChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Data will be injected here
+        const DATA = /*DATA_PLACEHOLDER*/[];
+        
+        // Order colors
+        const orderColors = {};
+        const colorPalette = [
+            '#00d4aa', '#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3',
+            '#f38181', '#aa96da', '#fcbad3', '#a8d8ea', '#ff9a3c'
+        ];
+        let colorIndex = 0;
+        
+        // Get unique orders and assign colors
+        const orders = [...new Set(DATA.map(d => d.prod_order))];
+        orders.forEach(order => {
+            orderColors[order] = colorPalette[colorIndex % colorPalette.length];
+            colorIndex++;
+        });
+        
+        // Build legend
+        const legendHtml = orders.map(order => {
+            const variety = DATA.find(d => d.prod_order === order)?.variety || order;
+            return `<div class="order-item">
+                <div class="order-color" style="background: ${orderColors[order]}"></div>
+                <span>${order}: ${variety}</span>
+            </div>`;
+        }).join('');
+        document.getElementById('orderLegend').innerHTML = legendHtml;
+        
+        // Update timestamp
+        if (DATA.length > 0) {
+            document.getElementById('lastUpdate').textContent = 
+                `Last update: ${DATA[DATA.length - 1].timestamp} | ${DATA.length} data points`;
+        }
+        
+        // Chart defaults
+        Chart.defaults.color = '#888';
+        Chart.defaults.borderColor = '#333';
+        
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => {
+                            const d = DATA[items[0].dataIndex];
+                            return `${d.timestamp}\n${d.prod_order}: ${d.variety}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    ticks: { 
+                        maxTicksLimit: 12,
+                        callback: function(val, idx) {
+                            const ts = DATA[idx]?.timestamp || '';
+                            return ts.split(' ')[1]?.substring(0, 5) || '';
+                        }
+                    },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: false,
+                    grid: { color: '#333' }
+                }
+            }
+        };
+        
+        function createChart(canvasId, label, dataKey, color = '#00d4aa', threshold = null) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const values = DATA.map(d => d[dataKey]);
+            const colors = DATA.map(d => orderColors[d.prod_order] || color);
+            
+            const datasets = [{
+                label: label,
+                data: values,
+                borderColor: colors,
+                backgroundColor: colors.map(c => c + '40'),
+                borderWidth: 2,
+                pointRadius: 1,
+                tension: 0.3,
+                segment: {
+                    borderColor: ctx => {
+                        const p0Order = DATA[ctx.p0DataIndex]?.prod_order;
+                        const p1Order = DATA[ctx.p1DataIndex]?.prod_order;
+                        if (p0Order !== p1Order) return 'transparent';
+                        return orderColors[p0Order] || color;
+                    }
+                }
+            }];
+            
+            if (threshold !== null) {
+                datasets.push({
+                    label: 'Threshold',
+                    data: Array(DATA.length).fill(threshold),
+                    borderColor: '#ff6b6b',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                });
+            }
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: { labels: DATA.map(d => d.timestamp), datasets },
+                options: chartOptions
+            });
+        }
+        
+        // Create all charts
+        createChart('binsPerHourChart', 'Bins/Hr', 'bins_per_hour');
+        createChart('avgWeightChart', 'Weight', 'avg_bin_weight');
+        createChart('binsConsumedChart', 'Consumed', 'bins_consumed');
+        createChart('fullPctChart', 'Full %', 'full_pct');
+        createChart('gradeFullChart', 'Full', 'grade_full');
+        createChart('gradeExportChart', 'Export', 'grade_export');
+        createChart('gradeLightGreenChart', 'Light Green', 'grade_light_green');
+        createChart('gradeChoiceChart', 'Choice', 'grade_choice', '#ffe66d', 12);
+        createChart('gradeJuiceChart', 'Juice', 'grade_juice');
+        createChart('gradeGreenChart', 'Green', 'grade_green');
+        createChart('brixHighChart', 'High', 'brix_high');
+        createChart('brixMidChart', 'Mid', 'brix_mid');
+        createChart('brixLowChart', 'Low', 'brix_low');
+        
+        // Defects chart (Choice + Juice)
+        const defectsCtx = document.getElementById('defectsChart').getContext('2d');
+        const defectValues = DATA.map(d => (d.grade_choice || 0) + (d.grade_juice || 0));
+        new Chart(defectsCtx, {
+            type: 'line',
+            data: {
+                labels: DATA.map(d => d.timestamp),
+                datasets: [
+                    {
+                        label: 'Defects',
+                        data: defectValues,
+                        borderColor: DATA.map(d => orderColors[d.prod_order]),
+                        borderWidth: 2,
+                        pointRadius: 1,
+                        tension: 0.3,
+                        fill: false,
+                        segment: {
+                            borderColor: ctx => {
+                                const p0Order = DATA[ctx.p0DataIndex]?.prod_order;
+                                const p1Order = DATA[ctx.p1DataIndex]?.prod_order;
+                                if (p0Order !== p1Order) return 'transparent';
+                                return orderColors[p0Order];
+                            }
+                        }
+                    },
+                    {
+                        label: 'Alert Threshold',
+                        data: Array(DATA.length).fill(12),
+                        borderColor: '#ff6b6b',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: chartOptions
+        });
+        
+        // Size distribution stacked area chart (grouped: Large, Medium, Small)
+        const sizeCtx = document.getElementById('sizeChart').getContext('2d');
+        const sizeGroups = [
+            { label: 'Large (18+21)', calc: d => (d.size_18 || 0) + (d.size_21 || 0), color: '#00d4aa' },
+            { label: 'Medium (24+28+32)', calc: d => (d.size_24 || 0) + (d.size_28 || 0) + (d.size_32 || 0), color: '#ffe66d' },
+            { label: 'Small (36+40+44)', calc: d => (d.size_36 || 0) + (d.size_40 || 0) + (d.size_44 || 0), color: '#ff6b6b' }
+        ];
+        new Chart(sizeCtx, {
+            type: 'line',
+            data: {
+                labels: DATA.map(d => d.timestamp),
+                datasets: sizeGroups.map(group => ({
+                    label: group.label,
+                    data: DATA.map(d => group.calc(d)),
+                    borderColor: group.color,
+                    backgroundColor: group.color + '60',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    segment: {
+                        borderColor: ctx => {
+                            const p0Order = DATA[ctx.p0DataIndex]?.prod_order;
+                            const p1Order = DATA[ctx.p1DataIndex]?.prod_order;
+                            if (p0Order !== p1Order) return 'transparent';
+                            return group.color;
+                        }
+                    }
+                }))
+            },
+            options: {
+                ...chartOptions,
+                plugins: {
+                    ...chartOptions.plugins,
+                    legend: { display: true, position: 'top' }
+                },
+                scales: {
+                    ...chartOptions.scales,
+                    y: { stacked: true, max: 100 }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
