@@ -3,7 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>FPC-Presort Time Series Dashboard</title>
+    <!-- GA4 placeholder - add measurement ID below -->
+    <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
+    </script> -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <style>
@@ -131,8 +140,7 @@
 
     <script>
         // Data will be injected here
-        const DATA = [{"timestamp":"2026-01-31 16:59:17","prod_order":"PROD49564","variety":"Gonzalez-Tango","bins_per_hour":263,"avg_bin_weight":967.0,"bins_consumed":150,"bins_received":194,"full_pct":83,"grade_full":41,"grade_export":25,"grade_light_green":16,"grade_choice":5,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":80,"brix_mid":14,"brix_low":6,"size_18":1,"size_21":7,"size_24":14,"size_28":24,"size_32":25,"size_36":17,"size_40":12,"size_44":null},
-{"timestamp":"2026-01-31 17:04:12","prod_order":"PROD49564","variety":"Gonzalez-Tango","bins_per_hour":268,"avg_bin_weight":966.0,"bins_consumed":174,"bins_received":194,"full_pct":83,"grade_full":42,"grade_export":25,"grade_light_green":16,"grade_choice":5,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":81,"brix_mid":14,"brix_low":6,"size_18":1,"size_21":7,"size_24":14,"size_28":24,"size_32":25,"size_36":17,"size_40":12,"size_44":null},
+        const DATA = [{"timestamp":"2026-01-31 17:04:12","prod_order":"PROD49564","variety":"Gonzalez-Tango","bins_per_hour":268,"avg_bin_weight":966.0,"bins_consumed":174,"bins_received":194,"full_pct":83,"grade_full":42,"grade_export":25,"grade_light_green":16,"grade_choice":5,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":81,"brix_mid":14,"brix_low":6,"size_18":1,"size_21":7,"size_24":14,"size_28":24,"size_32":25,"size_36":17,"size_40":12,"size_44":null},
 {"timestamp":"2026-01-31 17:09:13","prod_order":"PROD49564","variety":"Gonzalez-Tango","bins_per_hour":271,"avg_bin_weight":965.0,"bins_consumed":198,"bins_received":194,"full_pct":83,"grade_full":41,"grade_export":24,"grade_light_green":16,"grade_choice":5,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":81,"brix_mid":13,"brix_low":5,"size_18":1,"size_21":7,"size_24":14,"size_28":24,"size_32":25,"size_36":17,"size_40":12,"size_44":null},
 {"timestamp":"2026-01-31 17:14:16","prod_order":"PROD49564","variety":"Gonzalez-Tango","bins_per_hour":265,"avg_bin_weight":965.0,"bins_consumed":217,"bins_received":194,"full_pct":82,"grade_full":41,"grade_export":24,"grade_light_green":15,"grade_choice":5,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":82,"brix_mid":13,"brix_low":5,"size_18":1,"size_21":7,"size_24":14,"size_28":24,"size_32":25,"size_36":17,"size_40":12,"size_44":null},
 {"timestamp":"2026-01-31 17:19:15","prod_order":"PROD49564","variety":"Gonzalez-Tango","bins_per_hour":264,"avg_bin_weight":964.0,"bins_consumed":238,"bins_received":194,"full_pct":82,"grade_full":41,"grade_export":25,"grade_light_green":15,"grade_choice":5,"grade_juice":0,"grade_green":1,"grade_long_stem":1,"brix_high":81,"brix_mid":13,"brix_low":5,"size_18":1,"size_21":7,"size_24":14,"size_28":24,"size_32":25,"size_36":17,"size_40":12,"size_44":null},
